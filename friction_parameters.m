@@ -1,7 +1,7 @@
 clear
 clc
 close all
-
+% This is Trevor's version
 % Friction Parameters
 param.g1 = 0;
 param.g2 = 0;
