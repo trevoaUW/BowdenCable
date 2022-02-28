@@ -12,10 +12,10 @@ param.g6 = 0;
 param.J = 1;
 
 %% Simulation Loop
-for i = 0:0.05:1
+for i = 0:5:20
     % Vary Coulomb Friction Coefficient
     param.g4 = i;
-    sim('PID_Control.slx');
+    sim('PID_Control_acceleration_loop.slx');
 
     % Collect sim outputs
     thetaSignal = ans.yout.getElement('theta');
