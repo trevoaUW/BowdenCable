@@ -8,11 +8,11 @@ param.g2 = 0;
 param.g3 = 0;
 param.g4 = 0;
 param.g5 = 100;
-param.g6 = 0.4;
+param.g6 = 0;
 param.J = 1;
 
 %% Simulation Loop
-for i = 0:0.5:5
+for i = 0:0.05:1
     % Vary Coulomb Friction Coefficient
     param.g4 = i;
     sim('PID_Control.slx');
@@ -24,9 +24,12 @@ for i = 0:0.5:5
     omegaSignal = ans.yout.getElement('omega');
     t_omega = omegaSignal.Values.Time;
     omega = omegaSignal.Values.Data;
+    errorSignal = ans.yout.getElement('error');
+    t_error = errorSignal.Values.Time;
+    error = errorSignal.Values.Data;
 
     % Plot Theta Response
-    subplot(3,1,1)
+    subplot(2,2,1)
     hold on
     plot(t_theta, theta)
     xlabel('Time (s)')
@@ -34,7 +37,7 @@ for i = 0:0.5:5
     title('Angular Position Response')
 
     % Plot Omega Response
-    subplot(3,1,2)
+    subplot(2,2,2)
     hold on
     plot(t_omega, omega)
     xlabel('Time (s)')
@@ -42,13 +45,21 @@ for i = 0:0.5:5
     title('Angular Velocity Response')
 
     % Plot max theta
-    subplot(3,1,3)
+    subplot(2,2,3)
     hold on
     max_theta = max(theta);
     plot(i, max_theta, 'o');
     xlabel('Coulomb Friction Coeff')
     ylabel('Theta (rad)')
     title('Max Theta')
+
+    % Plot error
+    subplot(2,2,4)
+    hold on
+    plot(t_error, error);
+    xlabel('Time (s)')
+    ylabel('Error (rad)')
+    title('Error Signal')
 end
 
 %% Plot Friction curve
