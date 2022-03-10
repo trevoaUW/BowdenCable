@@ -2,22 +2,37 @@ clear
 clc
 close all
 
+%% Parameters
+
 % Friction Parameters
-param.g1 = 0;
+param.g1 = 5;    % max stiction value
 param.g2 = 90;
 param.g3 = 11;
-param.g4 = 0;
+param.g4 = 3;    % max Coulomb value
 param.g5 = 100;
-param.g6 = 0;
-param.J = 1;
+param.g6 = 0;    % damping coeff.
+
+% Plant Parameters
+param.J = 1e-2;
+
+%% PID Controller Design
+plant = tf([1], [param.J 0 0]);
+omega_c = 6; % rad/s;
+opt = pidtuneOptions('DesignFocus', 'reference-tracking');
+c = pidtune(plant, 'pidf', omega_c, opt);
+
+param.Kp = c.Kp;
+param.Ki = c.Ki;
+param.Kd = c.Kd;
+param.N = 1/c.Tf;
+
+models = ["PID_no_frict.slx", "PID_frict.slx", "PID_accel.slx", "PID_accel_reset.slx"];
 
 %% Simulation Loop
-for i = 877.25 % above 14 breaks model for Stribeck friction
-    % Vary Friction Coefficient
-    param.g1 = i;
-    model = sim('PID_Control.slx');
-%     model = sim('PID_Control_acceleration_loop.slx');
-%     model = sim('PID_accel_reset.slx');
+
+for i = 1:3 
+    % Vary Model
+    model = sim(models(i));
 
     % Collect sim outputs
     thetaSignal = model.yout.getElement('theta');
@@ -37,40 +52,40 @@ for i = 877.25 % above 14 breaks model for Stribeck friction
 %     Accel_torque = AccelTorqueSignal.Values.Data;
 
     % Plot Theta Response
-    subplot(5,1,1)
+    subplot(4,1,1)
     hold on
-    plot(t_theta, theta, 'DisplayName', ['i=' num2str(i)])
+    plot(t_theta, theta, 'DisplayName', models(i))
     xlabel('Time (s)')
     ylabel('Theta (rad)')
     title('Angular Position')
-    legend()
+    legend('Interpreter', 'none')
 
     % Plot error
-    subplot(5,1,2)
+    subplot(4,1,2)
     hold on
-    plot(t_error, error, 'DisplayName', ['i=' num2str(i)]);
+    plot(t_error, error, 'DisplayName', models(i));
     xlabel('Time (s)')
     ylabel('Error (rad)')
     title('Error Signal')
-    legend
+    legend('Interpreter', 'none')
 
     % Plot Omega Response
-    subplot(5,1,3)
+    subplot(4,1,3)
     hold on
-    plot(t_omega, omega, 'DisplayName', ['i=' num2str(i)])
+    plot(t_omega, omega, 'DisplayName', models(i))
     xlabel('Time (s)')
     ylabel('Omega (rad/s)')
     title('Angular Velocity')
-    legend()
+    legend('Interpreter', 'none')
 
     % Plot PID Torque Response
-    subplot(5,1,4)
+    subplot(4,1,4)
     hold on
-    plot(t_PID, PID_torque, 'DisplayName', ['i=' num2str(i)])
+    plot(t_PID, PID_torque, 'DisplayName', models(i))
     xlabel('Time (s)')
     ylabel('Torque (Nm)')
     title('PID Torque')
-    legend()
+    legend('Interpreter', 'none')
     
     % Plot Accel Torque Response
 %     subplot(5,1,5)
