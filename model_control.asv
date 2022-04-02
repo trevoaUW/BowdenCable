@@ -5,15 +5,15 @@ close all
 %% Parameters
 
 % Friction Parameters
-param.g1 = 0.3;    % max stiction value
+param.g1 = 5;    % max stiction value
 param.g2 = 90;
 param.g3 = 11;
-param.g4 = 0.1;    % max Coulomb value
+param.g4 = 3;    % max Coulomb value
 param.g5 = 100;
 param.g6 = 0;    % damping coeff.
 
 % Plant Parameters
-param.J = 0.00034;
+param.J = 1e-2;
 
 %% PID Controller Design
 plant = tf([1], [param.J 0 0]);
@@ -30,8 +30,8 @@ param.N = 1/c.Tf;
 ol_no_accel = c*plant;
 cl_no_accel = feedback(ol_no_accel, 1);
 omega_b = 5*bandwidth(cl_no_accel);
-param.Ka = 100;
-param.tau = 1/omega_b;
+param.Ka = 1;
+param.tau = 1/omega_b
 accel_cont = tf([param.Ka], [param.tau, 1]);
 
 %% System Transfer Function 
@@ -126,6 +126,7 @@ u = -10:0.01:10;
 frict_force = friction_m(u, param);
 figure(2)
 plot(u, frict_force)
+axis([-10 10 -5 5])
 xlabel("Velocity")
 ylabel("Friction Force")
 title("Friction Curve")
