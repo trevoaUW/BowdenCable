@@ -5,10 +5,10 @@ close all
 %% Parameters
 
 % Friction Parameters
-param.g1 = 0.3;    % max stiction value
+param.g1 = 0.1;    % max stiction value
 param.g2 = 90;
 param.g3 = 11;
-param.g4 = 0.1;    % max Coulomb value
+param.g4 = 0.05;    % max Coulomb value
 param.g5 = 100;
 param.g6 = 0;    % damping coeff.
 
@@ -30,12 +30,12 @@ param.N = 1/c.Tf;
 ol_no_accel = c*plant;
 cl_no_accel = feedback(ol_no_accel, 1);
 omega_b = 5*bandwidth(cl_no_accel);
-param.Ka = 100;
+param.Ka = 10000;
 param.tau = 1/omega_b;
 accel_cont = tf([param.Ka], [param.tau, 1]);
 
 %% System Transfer Function 
-ol_accel = accel_cont*plant;
+ol_accel = c*accel_cont*plant;
 cl_accel = feedback(ol_accel, 1);
 % [K, R] = rlocfind(ol_accel);
 rlocus(ol_accel)
@@ -62,12 +62,9 @@ for i = 1:3
     PIDTorqueSignal = model.yout.getElement('PID Torque');
     t_PID = PIDTorqueSignal.Values.Time;
     PID_torque = PIDTorqueSignal.Values.Data;
-%     AccelTorqueSignal = model.yout.getElement('Accel Torque');
-%     t_accel = AccelTorqueSignal.Values.Time;
-%     Accel_torque = AccelTorqueSignal.Values.Data;
-
+    
     % Plot Theta Response
-    subplot(4,1,1)
+    subplot(5,1,1)
     hold on
     plot(t_theta, theta, 'DisplayName', models(i))
     xlabel('Time (s)')
@@ -76,7 +73,7 @@ for i = 1:3
     legend('Interpreter', 'none')
 
     % Plot error
-    subplot(4,1,2)
+    subplot(5,1,2)
     hold on
     plot(t_error, error, 'DisplayName', models(i));
     xlabel('Time (s)')
@@ -85,7 +82,7 @@ for i = 1:3
     legend('Interpreter', 'none')
 
     % Plot Omega Response
-    subplot(4,1,3)
+    subplot(5,1,3)
     hold on
     plot(t_omega, omega, 'DisplayName', models(i))
     xlabel('Time (s)')
@@ -94,7 +91,7 @@ for i = 1:3
     legend('Interpreter', 'none')
 
     % Plot PID Torque Response
-    subplot(4,1,4)
+    subplot(5,1,4)
     hold on
     plot(t_PID, PID_torque, 'DisplayName', models(i))
     xlabel('Time (s)')
@@ -120,6 +117,20 @@ for i = 1:3
 %     ylabel('Theta (rad)')
 %     title('Max Theta')
 end
+
+% Plot Accel Torque Response
+
+AccelTorqueSignal = model.yout.getElement('Accel Torque');
+t_accel = AccelTorqueSignal.Values.Time;
+Accel_torque = AccelTorqueSignal.Values.Data;
+
+subplot(5,1,5)
+hold on
+plot(t_accel, Accel_torque, 'DisplayName', ['i=' num2str(i)])
+xlabel('Time (s)')
+ylabel('Torque (Nm)')
+title('Accel. Controller Torque')
+legend()
 
 %% Plot Friction curve
 u = -10:0.01:10;
