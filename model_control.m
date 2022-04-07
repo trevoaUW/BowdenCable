@@ -30,20 +30,25 @@ param.N = 1/c.Tf;
 ol_no_accel = c*plant;
 cl_no_accel = feedback(ol_no_accel, 1);
 omega_b = 5*bandwidth(cl_no_accel);
-param.Ka = 10000;
+param.Ka = 470;
 param.tau = 1/omega_b;
 accel_cont = tf([param.Ka], [param.tau, 1]);
 
-%% System Transfer Function 
+%% System Transfer Function + Find Root Locus
 ol_accel = c*accel_cont*plant;
 cl_accel = feedback(ol_accel, 1);
-% [K, R] = rlocfind(ol_accel);
-rlocus(ol_accel)
-% bode(cl_accel)
-% param.tau = 1/omega_b;
-    
+
+dot = tf([1 0], [1]);
+double_dot = tf([1 0 0], [1]);
+
+C = feedback(plant, dot);
+D = feedback(accel_cont*param.J*C, double_dot);
+
+rl_ol_tf = c*(1/param.J)*D;
+rlocus(rl_ol_tf)
+
 %% Simulation Loop
-models = ["PID_no_frict.slx", "PID_frict.slx", "PID_accel.slx", "PID_accel_reset.slx"];
+models = ["PID_no_frict.slx", "PID_frict.slx", "PID_accel_noise.slx", "PID_accel_reset.slx"];
 
 for i = 1:3 
     % Vary Model
