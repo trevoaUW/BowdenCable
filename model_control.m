@@ -1,5 +1,5 @@
 %% Simulation Loop
-models = ["PID_no_frict.slx", "PID_frict.slx", "PID_accel_no_frict.slx", "PID_accel_reset.slx"];
+models = ["PID_no_frict.slx", "PID_frict.slx", "PID_accel_noise.slx"];
 
 for i = 1:3 
     % Vary Model
