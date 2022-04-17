@@ -1,5 +1,5 @@
 %% Simulation Loop
-models = ["PID_no_frict.slx", "PID_frict.slx", "PID_accel_noise.slx"];
+models = ["PID_no_frict.slx", "PID_frict.slx", "PID_accel.slx"];
 
 for i = 1:3 
     % Vary Model
@@ -82,7 +82,7 @@ Accel_torque = AccelTorqueSignal.Values.Data;
 
 subplot(5,1,5)
 hold on
-plot(t_accel, Accel_torque, 'DisplayName', ['i=' num2str(i)])
+plot(t_accel, Accel_torque)
 xlabel('Time (s)')
 ylabel('Torque (Nm)')
 title('Accel. Controller Torque')
