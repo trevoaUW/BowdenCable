@@ -35,18 +35,27 @@ param.tau = 1/omega_b;
 accel_cont = tf([param.Ka], [param.tau, 1]);
 
 %% Accel Root Locus
-% ol_accel = pid*accel_cont*plant;
-% cl_accel = feedback(ol_accel, 1);
-
 dot = tf([1 0], [1]);
 double_dot = tf([1 0 0], [1]);
 
-% C = feedback(plant, dot);
 D = feedback(accel_cont*param.J*plant, double_dot);
 
 rl_ol_tf = pid*(1/param.J)*D;
 whole_sys_tf = feedback(rl_ol_tf, 1)
 
-%% Test
+%% Step
 step(whole_sys_tf)
 xlim([0, 1])
+
+%% Ka Root Locus
+N = param.N;
+J = param.J;
+Kp = param.Kp;
+Kd = param.Kd;
+Ki = param.Ki;
+tau = param.tau;
+Ka = param.Ka;
+Num = [J N*J (Kp+Kd*N) (Kp*N + Ki) Ki*N];
+Den = [J*tau (J+J*tau*N) J*N 0 0 0];
+GH = tf(Num, Den)
+rlocus(GH)
