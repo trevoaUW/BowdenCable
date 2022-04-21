@@ -1,6 +1,6 @@
 %% Convert to discrete form
 T = 0.005;
-c_dp = c2d(whole_sys_tf, T, 'tustin')
+c_dp = c2d(pid, T, 'tustin')
 c_d = tf(c_dp)
 [b, axis] = tfdata(c_d, 'v')
 sos = tf2sos(b, axis)
