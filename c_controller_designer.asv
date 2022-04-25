@@ -10,7 +10,7 @@ param.g6 = 0;    % damping coeff.
 
 % Plant Parameters
 param.J = 0.00034;
-T = 0.0005; %s
+T = 0.005; %s
 
 %% PID Controller Design
 plant = tf([1], [param.J 0 0]);
@@ -58,7 +58,7 @@ sos2header(fid, sos2, 'DDERIV',T, comment2);
 ol_no_accel = pid*plant;
 cl_no_accel = feedback(ol_no_accel, 1);
 omega_b = 5*bandwidth(cl_no_accel);
-param.Ka = 4;
+param.Ka = 12;
 param.tau = 1/omega_b;
 accel_cont = tf([param.Ka], [param.tau, 1]);
 
