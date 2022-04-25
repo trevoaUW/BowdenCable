@@ -38,8 +38,8 @@ sos2header(fid, sos, 'PIDF',T, comment);
 %% DOUBLE DERIVATIVE FILTER
 %TBD
 %s/(s/630+1)
-H1 = tf([1],[1/630 1]);
-H2 = tf([1],[1/630, 1]);
+H1 = tf([1 0],[1/630 1]);
+H2 = tf([1 0],[1/630, 1]);
 dderiv = series(H1, H2);
 
 %convert with Tustin
