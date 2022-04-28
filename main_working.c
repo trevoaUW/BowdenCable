@@ -30,7 +30,7 @@ double y1; double y2; }; // output
 
 */
 //change for controller
-#include "myPIDf.h"
+#include "myPIDF.h"
 //acceleration controller (change by its saved file)
 #include "myAcc.h"
 //converts position into acceleration for feeding back
@@ -77,7 +77,7 @@ double J = 0.00034;
 NiFpga_Session myrio_session;
 MyRio_Encoder encC0;
 
-double BTILength = 0.5; //ms
+double BTILength = 5; //ms
 static double curpos[IMAX]; // current pos buffer
 static double *bpcurpos = curpos; // buffer pointer
 static double refpos[IMAX]; // ref pos buffer
@@ -279,22 +279,20 @@ void *TimerIRQThread(void* resource) {
     			ramps = Sramps(mySegs, nseg, &iseg, &itime, T, pref); //rev
     			actualPosition = pos() / 2000; //rev
     			*pact = actualPosition;
-    			error = -1*(*pref - *pact)*2*PI; //rad THIS WAS CAUSING ISSUE!!! Pref and Pact
+    			error = (*pref - *pact)*2*PI; //rad THIS WAS CAUSING ISSUE!!! Pref and Pact
 
 				//grab aact from physical system, assign to table
 				//grab aref from table
 
 				torqueOut = cascade(error, PIDF, PIDF_ns,-1, 1); //get PID output
-				*aref = torqueOut / J;
-				actualAccel = cascade((*pact)*2*PI, DDERIV, DDERIV_ns,-10000,10000); //convert rev to rad
-				*aact = actualAccel;
-				accelError = *aref - *aact;//rad/s^2 output of accel. controller (will need motor constants implemented)
-				//double accelError = 2;
-				OutputAccel = cascade(accelError, ACC, ACC_ns,-10000,10000);
+				*aref = torqueOut / J;  //rad/s^2
+				actualAccel = cascade((*pact)*2*PI, DDERIV, DDERIV_ns,-900,900); //convert rev to rad
+				*aact = actualAccel; //rad/s^2
+				accelError = *aref - *aact;//rad/s^2 output of accel. controller
+				OutputAccel = cascade(accelError, ACC, ACC_ns,-900,900);
 				AccelTorqueOutput = OutputAccel * J;
 
 				vout = AccelTorqueOutput / KT / KVI;
-				//double vout = 5;
 				Aio_Write(&CO0,  vout);
 
     		    //measured position
@@ -326,7 +324,7 @@ void *TimerIRQThread(void* resource) {
         		    	*bpcuraccel++ = actualAccel*(2*PI);
         		 }
 
-    			*VDAmV =   vout *1000.0;
+    			*VDAmV =   vout * 1000.0;
 
     		   Irq_Acknowledge(irqAssert);
     		}
@@ -418,5 +416,7 @@ double pos(void) {
 	double delta = (double) (curCount -prevCount);
 	return delta;
 }
+
+
 
 

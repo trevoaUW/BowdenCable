@@ -55,6 +55,7 @@ Kd = param.Kd;
 Ki = param.Ki;
 tau = param.tau;
 Ka = param.Ka;
+T = 0.0005;
 Num = [J N*J (Kp+Kd*N) (Kp*N + Ki) Ki*N];
 Den = [J*tau (J+J*tau*N) J*N 0 0 0];
 GH = tf(Num, Den)

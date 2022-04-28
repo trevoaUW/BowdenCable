@@ -10,7 +10,7 @@ param.g6 = 0;    % damping coeff.
 
 % Plant Parameters
 param.J = 0.00034;
-T = 0.0005; %s
+T = 0.005; %s
 
 %% PID Controller Design
 plant = tf([1], [param.J 0 0]);
@@ -31,15 +31,16 @@ sos = tf2sos(b,a);
 
 %Send to location where Eclipse will be able to access it
 %%%NEED TO UPDATE LOCATION FOR USE IN TESTing
-fid = fopen("C:\Users\Trevor\Documents\UW Files\ME 477\workspace\myLab8\myPIDf.h", 'w');
+fid = fopen("C:\Users\Trevor\Documents\UW Files\ME 477\workspace\myLab8\myPIDF.h", 'w');
 comment = 'Friction Capstone Controllers';
 sos2header(fid, sos, 'PIDF',T, comment);
 
 %% DOUBLE DERIVATIVE FILTER
 %TBD
 %s/(s/630+1)
-H1 = tf([1 0],[1/630 1]);
-H2 = tf([1 0],[1/630, 1]);
+tau_d = 1/630;
+H1 = tf([1 0],[tau_d 1]);
+H2 = tf([1 0],[tau_d, 1]);
 dderiv = series(H1, H2);
 
 %convert with Tustin
@@ -50,7 +51,7 @@ sos2 = tf2sos(b,a);
 
 %Send to location where Eclipse will be able to access it
 %%%NEED TO UPDATE LOCATION FOR USE IN TESTing
-fid = fopen("C:\Users\Trevor\Documents\UW Files\ME 477\workspace\myLab8\myDDeriv", 'w');
+fid = fopen("C:\Users\Trevor\Documents\UW Files\ME 477\workspace\myLab8\myDDeriv.h", 'w');
 comment2 = 'Double Derivative Filter';
 sos2header(fid, sos2, 'DDERIV',T, comment2);
 
@@ -58,7 +59,7 @@ sos2header(fid, sos2, 'DDERIV',T, comment2);
 ol_no_accel = pid*plant;
 cl_no_accel = feedback(ol_no_accel, 1);
 omega_b = 5*bandwidth(cl_no_accel);
-param.Ka = 4;
+param.Ka = 2;
 param.tau = 1/omega_b;
 accel_cont = tf([param.Ka], [param.tau, 1]);
 

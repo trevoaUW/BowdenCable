@@ -10,7 +10,7 @@ param.g6 = 0;    % damping coeff.
 
 % Plant Parameters
 param.J = 0.00034;
-T = 0.005; %s
+T = 0.0005; %s
 
 %% PID Controller Design
 plant = tf([1], [param.J 0 0]);
