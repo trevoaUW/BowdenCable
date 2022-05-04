@@ -26,8 +26,8 @@ param.N = 1/pid.Tf;
 %convert to discrete form
 cdp = c2d(pid,T,'tustin'); %parallel discrete
 cd = tf(cdp); %transfer function form
-[b,a] = tfdata(cd, 'v'); %outputs to array
-sos = tf2sos(b,a);
+[b_pid, a_pid] = tfdata(cd, 'v'); %outputs to array
+sos = tf2sos(b_pid, a_pid);
 
 %Send to location where Eclipse will be able to access it
 %%%NEED TO UPDATE LOCATION FOR USE IN TESTing
@@ -38,7 +38,7 @@ sos2header(fid, sos, 'PIDF',T, comment);
 %% DOUBLE DERIVATIVE FILTER
 %TBD
 %s/(s/630+1)
-tau_d = 1/12500;
+tau_d = 1/1200;
 H1 = tf([1 0],[tau_d 1]);
 H2 = tf([1 0],[tau_d, 1]);
 dderiv = series(H1, H2);
@@ -46,8 +46,8 @@ dderiv = series(H1, H2);
 %convert with Tustin
 cdp = c2d(dderiv,T,'tustin'); %parallel discrete
 cd = tf(cdp); %transfer function form
-[b,a] = tfdata(cd, 'v'); %outputs to array
-sos2 = tf2sos(b,a);
+[b_dd, a_dd] = tfdata(cd, 'v'); %outputs to array
+sos2 = tf2sos(b_dd, a_dd);
 
 %Send to location where Eclipse will be able to access it
 %%%NEED TO UPDATE LOCATION FOR USE IN TESTing
@@ -59,15 +59,15 @@ sos2header(fid, sos2, 'DDERIV',T, comment2);
 ol_no_accel = pid*plant;
 cl_no_accel = feedback(ol_no_accel, 1);
 omega_b = 5*bandwidth(cl_no_accel);
-param.Ka = 1;
+param.Ka = 10;
 param.tau = 1/omega_b;
 accel_cont = tf([param.Ka], [param.tau, 1]);
 
 %convert with Tustin
 cdp = c2d(accel_cont,T,'tustin'); %parallel discrete
 cd = tf(cdp); %transfer function form
-[b,a] = tfdata(cd, 'v'); %outputs to array
-sos3 = tf2sos(b,a);
+[b_ac, a_ac] = tfdata(cd, 'v'); %outputs to array
+sos3 = tf2sos(b_ac, a_ac);
 
 %Send to location where Eclipse will be able to access it
 %%%NEED TO UPDATE LOCATION FOR USE IN TESTing
