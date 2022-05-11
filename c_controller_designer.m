@@ -1,16 +1,17 @@
 %ME 495 Bowden Cable Capstone
 clear all; close all;clc;
 % Friction Parameters
-param.g1 = 0.1;    % max stiction value
+param.g1 = 0;    % max stiction value
 param.g2 = 90;
 param.g3 = 11;
-param.g4 = 0.05;    % max Coulomb value
+param.g4 = 0;    % max Coulomb value
 param.g5 = 100;
 param.g6 = 0;    % damping coeff.
 
 % Plant Parameters
 param.J = 0.00034;
-T = 0.0005; %s
+T = 0.00075; %s
+Hz = 1/T;
 
 %% PID Controller Design
 plant = tf([1], [param.J 0 0]);
@@ -24,9 +25,9 @@ param.Kd = pid.Kd;
 param.N = 1/pid.Tf;
 
 %convert to discrete form
-cdp = c2d(pid,T,'tustin'); %parallel discrete
-cd = tf(cdp); %transfer function form
-[b_pid, a_pid] = tfdata(cd, 'v'); %outputs to array
+cdp_pid = c2d(pid,T,'tustin'); %parallel discrete
+cd_pid = tf(cdp_pid); %transfer function form
+[b_pid, a_pid] = tfdata(cd_pid, 'v'); %outputs to array
 sos = tf2sos(b_pid, a_pid);
 
 %Send to location where Eclipse will be able to access it
@@ -36,17 +37,18 @@ comment = 'Friction Capstone Controllers';
 sos2header(fid, sos, 'PIDF',T, comment);
 
 %% DOUBLE DERIVATIVE FILTER
-%TBD
-%s/(s/630+1)
-tau_d = 1/1200;
+% tau_b = 1/w_b
+% w_b = w_b_factor * BTI
+w_b_factor = 0.75;
+tau_d = 1/(w_b_factor*Hz*2*pi);
 H1 = tf([1 0],[tau_d 1]);
 H2 = tf([1 0],[tau_d, 1]);
 dderiv = series(H1, H2);
 
 %convert with Tustin
-cdp = c2d(dderiv,T,'tustin'); %parallel discrete
-cd = tf(cdp); %transfer function form
-[b_dd, a_dd] = tfdata(cd, 'v'); %outputs to array
+cdp_dd = c2d(dderiv,T,'tustin'); %parallel discrete
+cd_dd = tf(cdp_dd); %transfer function form
+[b_dd, a_dd] = tfdata(cd_dd, 'v'); %outputs to array
 sos2 = tf2sos(b_dd, a_dd);
 
 %Send to location where Eclipse will be able to access it
@@ -59,14 +61,14 @@ sos2header(fid, sos2, 'DDERIV',T, comment2);
 ol_no_accel = pid*plant;
 cl_no_accel = feedback(ol_no_accel, 1);
 omega_b = 5*bandwidth(cl_no_accel);
-param.Ka = 10;
+param.Ka = 5;
 param.tau = 1/omega_b;
 accel_cont = tf([param.Ka], [param.tau, 1]);
 
 %convert with Tustin
-cdp = c2d(accel_cont,T,'tustin'); %parallel discrete
-cd = tf(cdp); %transfer function form
-[b_ac, a_ac] = tfdata(cd, 'v'); %outputs to array
+cdp_ac = c2d(accel_cont,T,'tustin'); %parallel discrete
+cd_ac = tf(cdp_ac); %transfer function form
+[b_ac, a_ac] = tfdata(cd_ac, 'v'); %outputs to array
 sos3 = tf2sos(b_ac, a_ac);
 
 %Send to location where Eclipse will be able to access it
