@@ -77,8 +77,8 @@ double J = 0.00034;
 NiFpga_Session myrio_session;
 MyRio_Encoder encC0;
 
-double BTILength = 5; //ms
-static double curpos[IMAX]; // current pos buffer
+//double BTILength = 5; //s
+static double curpos[IMAX]; // currenpos buffer
 static double *bpcurpos = curpos; // buffer pointer
 static double refpos[IMAX]; // ref pos buffer
 static double *bprefpos = refpos; // buffer pointer
@@ -153,8 +153,9 @@ int main(int argc, char **argv)
     {"P act: (revs)", 0, 0.0 },
     {"A ref:", 0, 0.0},
     {"A act:", 0, 0.0},
-	{"Ka:", 1, 1},
-	{"Ke:", 1, 1},
+	{"Ka:", 1, 1.0},
+	{"Ke:", 0, 1.0},
+	{"OnOff:", 1, 1.0},  // On: 1, Off: 0
     {"VDAout: (mV)", 0, 0.0 }
     };
 
@@ -166,27 +167,27 @@ int main(int argc, char **argv)
 
     //register DIO IRQ and the status terminate if not successful
     status = Irq_RegisterTimerIrq( &irqTimer0,
-        								&irqThread0.irqContext,
-        								timeoutValue);
+        						   &irqThread0.irqContext,
+        						   BTI*1000000);
 
 	// Set the indicator to allow the new thread.
 	irqThread0.irqThreadRdy = NiFpga_True;
 
 
 	// II. Create new thread to catch the IRQ.
-	status = pthread_create( &thread,
+	status = pthread_create(&thread,
 							NULL,
 							TimerIRQThread,
 							&irqThread0);
 	// calls the table editor
-	ctable2(Table_Title, my_table, 7);
+	ctable2(Table_Title, my_table, 8);
 
 	// call signal interrupt to stop and wait to terminate
 	irqThread0.irqThreadRdy = NiFpga_False;
 	status = pthread_join(thread, NULL);
 
 	//unregister DIO IRQ and terminate if not successful
-		status = Irq_UnregisterTimerIrq( &irqTimer0,
+		status = Irq_UnregisterTimerIrq(&irqTimer0,
 										irqThread0.irqContext);
 
 	status1 = MyRio_Close();	 /*Close the myRIO NiFpga Session. */
@@ -228,21 +229,23 @@ void *TimerIRQThread(void* resource) {
 	double *aref = &((threadResource->a_table+2)->value);
 	double *aact = &((threadResource->a_table+3)->value);
 	double *Ka = &((threadResource->a_table+4)->value);
-	double *Ke = &((theadResource->a_table+5)->value);
-	double *VDAmV = &((threadResource->a_table+6)->value);
-	
+	double *Ke = &((threadResource->a_table+5)->value);
+	double *OnOff = &((threadResource->a_table+6)->value);
+	double *VDAmV = &((threadResource->a_table+7)->value);
+
 
 	seg *mySegs = threadResource->profile;
 	int nseg = threadResource->nseg;
 	double actualPosition;
 	double actualAccel;
-	double T;
 	double error;
 	double torqueOut;
 	double accelError;
 	double OutputAccel;
 	double AccelTorqueOutput;
 	double vout;
+	double denom_DD;
+	double denom_ACC;
 	int ramps;
 
 	MyRio_Aio CO0;
@@ -252,15 +255,14 @@ void *TimerIRQThread(void* resource) {
     Aio_Write(&CO0, 0);
 
     // initializing the quadrature encoder counter
-    	// and setting the counter to zero
-        EncoderC_initialize(myrio_session, &encC0);
+    // and setting the counter to zero
+    EncoderC_initialize(myrio_session, &encC0);
+    uint32_t irqAssert = 0;
 
-
-    	uint32_t irqAssert = 0;
     	// check if main thread does not signal to stop this thread
     	while (threadResource->irqThreadRdy == NiFpga_True) {
     		// wait for the interrupt
-    		Irq_Wait( threadResource->irqContext,
+    		Irq_Wait(threadResource->irqContext,
     				TIMERIRQNO,
     				&irqAssert,
     				(NiFpga_Bool*) &(threadResource->irqThreadRdy));
@@ -268,45 +270,61 @@ void *TimerIRQThread(void* resource) {
     		// schedule the next IRQ
     		NiFpga_WriteU32( myrio_session,
     						IRQTIMERWRITE,
-    						timeoutValue);
+    						BTI*1000000);
 
     		NiFpga_WriteBool( myrio_session,
     						IRQTIMERSETTIME,
     						NiFpga_True);
 
-    		 T =  BTILength / 1000.0;
+    		//printf("Here 1");
+
+    		//T =  BTILength / 1000.0;
 
     		//double refPosition;
     		// check if the IRQ  was asserted
-    		if(irqAssert & (1 << TIMERIRQNO)) {
-    			ramps = Sramps(mySegs, nseg, &iseg, &itime, T, pref); //rev
-				
-				//PIDF Controller
-    			actualPosition = pos() / 2000; //rev
-    			*pact = actualPosition;
-    			error = (*pref - *pact)*2*PI; //rad
-				torqueOut = cascade(error, PIDF, PIDF_ns,-1, 1); //get PID output
-				
-				// Acceleration Controller
-				*aref = torqueOut / J;  //rad/s^2
-				// Double Derivative
-				denom_DD = ((4*pow((DDERIV->tau),2))+(4*(DDERIV->T)*(DDERIV->tau))+pow(DDERIV->T, 2));
-				DDERIV->b0 = 4*(*Ke)/ denom_DD;
-				DDERIV->b1 = 8*(*Ke)/ denom_DD;
-				DDERIV->b2 = DDERIV->b0;
-				DDERIV->a1 = (-8*pow(DDERIV->tau, 2) + 2*pow(DDERIV->T,2))/denom_DD;
-				DDERIV->a2 = ((4*pow((DDERIV->tau),2))-(4*(DDERIV->T)*(DDERIV->tau))+pow(DDERIV->T, 2))/denom_DD;
-				actualAccel = cascade((*pact)*2*PI, DDERIV, DDERIV_ns,-900,900); //convert rev to rad
-				*aact = actualAccel; //rad/s^2
-				accelError = *aref - *aact;//rad/s^2 output of accel. controller
-				denom_ACC = (2*ACC->tau)+ACC->T;
-				ACC -> b0 = (*Ka)*ACC->T/denom_ACC;
-				ACC -> b1 = ACC -> b0;
-				ACC -> a1 = -(2*ACC->tau)+ACC->T/denom_ACC;
-				OutputAccel = cascade(accelError, ACC, ACC_ns,-900,900);
-				AccelTorqueOutput = OutputAccel * J;
-				vout = AccelTorqueOutput / KT / KVI;
-				Aio_Write(&CO0,  vout);
+    		if(irqAssert) {
+    			ramps = Sramps(mySegs, nseg, &iseg, &itime, BTI, pref); //rev
+    			//printf("Here 2");
+    			if (*OnOff == 1.0){
+    				//printf("Here 3");
+    				*Ke = 1;
+    				//PIDF Controller
+					actualPosition = pos() / 2000; //rev
+					*pact = actualPosition;
+					error = (*pref - *pact)*2*PI; //rad
+					torqueOut = cascade(error, PIDF, PIDF_ns,-1, 1); //get PID output
+
+					// Acceleration Controller
+					*aref = torqueOut / J;  //rad/s^2
+					// Double Derivative
+					denom_DD = (4*pow(tau_DD,2))+(4*BTI*tau_DD)+pow(BTI, 2);
+					DDERIV->b0 = 4*(*Ke)/ denom_DD;
+					DDERIV->b1 = -8*(*Ke)/ denom_DD;
+					DDERIV->b2 = DDERIV->b0;
+					DDERIV->a1 = (-8*pow(tau_DD, 2) + 2*pow(BTI,2))/denom_DD;
+					DDERIV->a2 = ((4*pow(tau_DD,2))-(4*BTI*tau_DD)+pow(BTI, 2))/denom_DD;
+					actualAccel = cascade((*pact)*2*PI, DDERIV, DDERIV_ns,-900,900); //convert rev to rad
+					*aact = actualAccel; //rad/s^2
+					accelError = *aref - *aact;//rad/s^2 output of accel. controller
+					denom_ACC = (2*tau_ACC)+BTI;
+					ACC -> b0 = (*Ka)*BTI/denom_ACC;
+					ACC -> b1 = ACC -> b0;
+					ACC -> a1 = (-(2*tau_ACC)+BTI)/denom_ACC;
+					OutputAccel = cascade(accelError, ACC, ACC_ns,-900,900);
+					AccelTorqueOutput = OutputAccel * J;
+					vout = AccelTorqueOutput / KT / KVI;
+					Aio_Write(&CO0,  vout);
+
+    			}
+    			else if (*OnOff == 0.0){
+    				*Ke = 0;
+    				actualPosition = pos() / 2000; //rev
+					*pact = actualPosition;
+					error = (*pref - *pact)*2*PI; //rad
+					torqueOut = cascade(error, PIDF, PIDF_ns,-1, 1); //get PID output
+					vout = torqueOut / KT / KVI;
+					Aio_Write(&CO0,  vout);
+    			}
 
     		    //measured position
     		    if (bpcurpos < curpos + IMAX){
@@ -360,7 +378,7 @@ void *TimerIRQThread(void* resource) {
 			matfile_addmatrix(mf, "PIDF", (double *) PIDF, 6, 1, 0);
 			matfile_addmatrix(mf, "AccelController", (double *) ACC, 6, 1, 0);
 			matfile_addmatrix(mf, "DoubleDervivate", (double *) DDERIV, 6, 1, 0);
-			matfile_addmatrix(mf, "BTILength", &T, 1, 1, 0);
+			matfile_addmatrix(mf, "BTILength", &BTI, 1, 1, 0);
 			matfile_close(mf);
 
 
