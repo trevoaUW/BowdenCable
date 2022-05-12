@@ -10,7 +10,7 @@ param.g6 = 0;    % damping coeff.
 
 % Plant Parameters
 param.J = 0.00034;
-T = 0.001; %s
+T = 0.00075; %s
 Hz = 1/T;
 
 %% PID Controller Design
@@ -34,7 +34,7 @@ sos = tf2sos(b_pid, a_pid);
 %%%NEED TO UPDATE LOCATION FOR USE IN TESTing
 fid = fopen("C:\Users\Trevor\Documents\UW Files\ME 477\workspace\myLab8\myPIDF.h", 'w');
 comment = 'Friction Capstone Controllers';
-sos2header(fid, sos, 'PIDF',T, 0, comment);
+sos2header(fid, sos, 'PIDF',T, comment);
 
 %% DOUBLE DERIVATIVE FILTER
 % tau_b = 1/w_b
@@ -55,13 +55,13 @@ sos2 = tf2sos(b_dd, a_dd);
 %%%NEED TO UPDATE LOCATION FOR USE IN TESTing
 fid = fopen("C:\Users\Trevor\Documents\UW Files\ME 477\workspace\myLab8\myDDeriv.h", 'w');
 comment2 = 'Double Derivative Filter';
-sos2header(fid, sos2, 'DDERIV',T, tau_d, comment2);
+sos2header(fid, sos2, 'DDERIV',T, comment2);
 
 %% ACCELERATION CONTROLLER
 ol_no_accel = pid*plant;
 cl_no_accel = feedback(ol_no_accel, 1);
 omega_b = 5*bandwidth(cl_no_accel);
-param.Ka = 1;
+param.Ka = 5;
 param.tau = 1/omega_b;
 accel_cont = tf([param.Ka], [param.tau, 1]);
 
@@ -75,7 +75,7 @@ sos3 = tf2sos(b_ac, a_ac);
 %%%NEED TO UPDATE LOCATION FOR USE IN TESTing
 fid = fopen("C:\Users\Trevor\Documents\UW Files\ME 477\workspace\myLab8\myAcc.h", 'w');
 comment3 = 'Acceleration Controller';
-sos2header(fid, sos3, 'ACC',T, param.tau, comment3);
+sos2header(fid, sos3, 'ACC',T, comment3);
 
 % %Test controller (discrete)
 % OLTF_d = series(Hd, cdp);
@@ -118,14 +118,9 @@ fprintf(fid,'//---%s\n', datestr(now,0));
 %%commented out for now, causing redundancy issues
 [ns,m]=size(sos);
 fprintf(fid,'    int         %s_ns = %d;              // number of sections\n',name,ns);
-if strcmp(name, 'DDERIV')
-    fprintf(fid,'    double tau_DD = %f;   // tau\n', tau);
-end
-if strcmp(name, 'ACC')
-    fprintf(fid,'    double tau_ACC = %f;   // tau\n', tau);
-end
+fprintf(fid,'    double  T = %f;     // sample period\n', T);
+fprintf(fid,'    double tau = %f;   // tau\n', tau);
 if strcmp(name,'PIDF')
-    fprintf(fid,'    double  BTI = %f;     // sample period\n', T);
     fprintf(fid,'    uint32_t    timeoutValue = %d;      // time interval - us; f_s = %g Hz\n',T*1e6,1/T);
 end
 fprintf(fid,'    static\tstruct\tbiquad %s[]={   // define the array of floating point biquads\n',name);

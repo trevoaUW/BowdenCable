@@ -153,7 +153,9 @@ int main(int argc, char **argv)
     {"P act: (revs)", 0, 0.0 },
     {"A ref:", 0, 0.0},
     {"A act:", 0, 0.0},
-    {"VDAout: (mV)", 0, 0.0 },
+	{"Ka:", 1, 1},
+	{"Ke:", 1, 1},
+    {"VDAout: (mV)", 0, 0.0 }
     };
 
     irqTimer0.timerWrite = IRQTIMERWRITE;
@@ -177,7 +179,7 @@ int main(int argc, char **argv)
 							TimerIRQThread,
 							&irqThread0);
 	// calls the table editor
-	ctable2(Table_Title, my_table, 5);
+	ctable2(Table_Title, my_table, 7);
 
 	// call signal interrupt to stop and wait to terminate
 	irqThread0.irqThreadRdy = NiFpga_False;
@@ -225,8 +227,10 @@ void *TimerIRQThread(void* resource) {
 	double *pact = &((threadResource->a_table+1)->value);
 	double *aref = &((threadResource->a_table+2)->value);
 	double *aact = &((threadResource->a_table+3)->value);
-	double *VDAmV = &((threadResource->a_table+4)->value);
-
+	double *Ka = &((threadResource->a_table+4)->value);
+	double *Ke = &((theadResource->a_table+5)->value);
+	double *VDAmV = &((threadResource->a_table+6)->value);
+	
 
 	seg *mySegs = threadResource->profile;
 	int nseg = threadResource->nseg;
@@ -275,23 +279,32 @@ void *TimerIRQThread(void* resource) {
     		//double refPosition;
     		// check if the IRQ  was asserted
     		if(irqAssert & (1 << TIMERIRQNO)) {
-    			//*pref = *pref*2*PI;
     			ramps = Sramps(mySegs, nseg, &iseg, &itime, T, pref); //rev
+				
+				//PIDF Controller
     			actualPosition = pos() / 2000; //rev
     			*pact = actualPosition;
-    			error = (*pref - *pact)*2*PI; //rad THIS WAS CAUSING ISSUE!!! Pref and Pact
-
-				//grab aact from physical system, assign to table
-				//grab aref from table
-
+    			error = (*pref - *pact)*2*PI; //rad
 				torqueOut = cascade(error, PIDF, PIDF_ns,-1, 1); //get PID output
+				
+				// Acceleration Controller
 				*aref = torqueOut / J;  //rad/s^2
+				// Double Derivative
+				denom_DD = ((4*pow((DDERIV->tau),2))+(4*(DDERIV->T)*(DDERIV->tau))+pow(DDERIV->T, 2));
+				DDERIV->b0 = 4*(*Ke)/ denom_DD;
+				DDERIV->b1 = 8*(*Ke)/ denom_DD;
+				DDERIV->b2 = DDERIV->b0;
+				DDERIV->a1 = (-8*pow(DDERIV->tau, 2) + 2*pow(DDERIV->T,2))/denom_DD;
+				DDERIV->a2 = ((4*pow((DDERIV->tau),2))-(4*(DDERIV->T)*(DDERIV->tau))+pow(DDERIV->T, 2))/denom_DD;
 				actualAccel = cascade((*pact)*2*PI, DDERIV, DDERIV_ns,-900,900); //convert rev to rad
 				*aact = actualAccel; //rad/s^2
 				accelError = *aref - *aact;//rad/s^2 output of accel. controller
+				denom_ACC = (2*ACC->tau)+ACC->T;
+				ACC -> b0 = (*Ka)*ACC->T/denom_ACC;
+				ACC -> b1 = ACC -> b0;
+				ACC -> a1 = -(2*ACC->tau)+ACC->T/denom_ACC;
 				OutputAccel = cascade(accelError, ACC, ACC_ns,-900,900);
 				AccelTorqueOutput = OutputAccel * J;
-
 				vout = AccelTorqueOutput / KT / KVI;
 				Aio_Write(&CO0,  vout);
 
