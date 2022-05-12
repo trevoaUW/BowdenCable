@@ -39,7 +39,7 @@ sos2header(fid, sos, 'PIDF',T, 0, comment);
 %% DOUBLE DERIVATIVE FILTER
 % tau_b = 1/w_b
 % w_b = w_b_factor * BTI
-w_b_factor = 0.75;
+w_b_factor = 0.0075;
 tau_d = 1/(w_b_factor*Hz*2*pi);
 H1 = tf([1 0],[tau_d 1]);
 H2 = tf([1 0],[tau_d, 1]);
