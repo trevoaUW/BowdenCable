@@ -54,6 +54,7 @@ int ns, // no. segments
 double ymin, // min output
 double ymax ); // max output
 double pos(void);
+void wait();
 void *TimerIRQThread(void* resource);
 int Sramps( seg *segs, // segments array
 	int nseg, // number of segments
@@ -64,7 +65,7 @@ int Sramps( seg *segs, // segments array
 
 /* definitions */
 #define SATURATE(x,lo,hi) ((x) < (lo) ? (lo) : (x) > (hi) ? (hi) : (x))
-#define IMAX 4000 // max points
+#define IMAX 32500 // max points
 
 /* global variables*/
 double KVI = 0.41;
@@ -77,13 +78,29 @@ double J = 0.00034;
 NiFpga_Session myrio_session;
 MyRio_Encoder encC0;
 
-//double BTILength = 5; //s
-static double curpos[IMAX]; // currenpos buffer
-static double *bpcurpos = curpos; // buffer pointer
-static double refpos[IMAX]; // ref pos buffer
-static double *bprefpos = refpos; // buffer pointer
-static double torque[IMAX]; // torque buffer
-static double *bptor = torque; // buffer pointer
+// Buffers for Acceleration Control On
+static double curpos_on[IMAX]; // currenpos buffer
+static double *bpcurpos_on = curpos_on; // buffer pointer
+static double refpos_on[IMAX]; // ref pos buffer
+static double *bprefpos_on = refpos_on; // buffer pointer
+static double torque_on[IMAX]; // torque buffer
+static double *bptor_on = torque_on; // buffer pointer
+static double curaccel_on[IMAX]; // current accel buffer
+static double *bpcuraccel_on = curaccel_on; // buffer current accel pointer
+static double refaccel_on[IMAX]; // ref accel buffer
+static double *bprefaccel_on = refaccel_on; // buffer ref accel pointer
+
+// Buffers for PID Only
+static double curpos_off[IMAX]; // currenpos buffer
+static double *bpcurpos_off = curpos_off; // buffer pointer
+static double refpos_off[IMAX]; // ref pos buffer
+static double *bprefpos_off = refpos_off; // buffer pointer
+static double torque_off[IMAX]; // torque buffer
+static double *bptor_off = torque_off; // buffer pointer
+static double curaccel_off[IMAX]; // current accel buffer
+static double *bpcuraccel_off = curaccel_off; // buffer current accel pointer
+static double refaccel_off[IMAX]; // ref accel buffer
+static double *bprefaccel_off = refaccel_off; // buffer ref accel pointer
 
 // if we have more time, build another filter for 1 derivative
 //static double curvel[IMAX]; // current vel buffer
@@ -91,14 +108,10 @@ static double *bptor = torque; // buffer pointer
 //static double refvel[IMAX]; // ref vel buffer
 //static double *bprefvel = refvel; // buffer ref vel pointer
 
-static double curaccel[IMAX]; // current accel buffer
-static double *bpcuraccel = curaccel; // buffer current accel pointer
-static double refaccel[IMAX]; // ref accel buffer
-static double *bprefaccel = refaccel; // buffer ref accel pointer
-
-
+// Sramps and pos global vars
 int itime = -1;
 int iseg = -1;
+int pos_int = 0;
 
 
 /*--------------------------------------------------------------
@@ -153,7 +166,7 @@ int main(int argc, char **argv)
     {"P act: (revs)", 0, 0.0 },
     {"A ref:", 0, 0.0},
     {"A act:", 0, 0.0},
-	{"Ka:", 1, 1.0},
+	{"Ka:", 1, 5},
 	{"Ke:", 0, 1.0},
 	{"OnOff:", 1, 1.0},  // On: 1, Off: 0
     {"VDAout: (mV)", 0, 0.0 }
@@ -246,6 +259,8 @@ void *TimerIRQThread(void* resource) {
 	double vout;
 	double denom_DD;
 	double denom_ACC;
+	int onFirst;
+	int offFirst;
 	int ramps;
 
 	MyRio_Aio CO0;
@@ -283,10 +298,29 @@ void *TimerIRQThread(void* resource) {
     		//double refPosition;
     		// check if the IRQ  was asserted
     		if(irqAssert) {
-    			ramps = Sramps(mySegs, nseg, &iseg, &itime, BTI, pref); //rev
-    			//printf("Here 2");
+
     			if (*OnOff == 1.0){
-    				//printf("Here 3");
+    				if (onFirst == 0){
+    					// Reset position
+    					Aio_Write(&CO0,  0.0);
+    					*pref = 0;
+    					wait(3000);
+    					*pact = 0;
+    					// Reset Sramps
+    					iseg = -1;
+    					itime = -1;
+    					pos_int = 0;
+    					// Reset Buffer Pointers
+    					bpcurpos_on = curpos_on; // buffer pointer
+    					bprefpos_on = refpos_on; // buffer pointer
+    					bptor_on = torque_on; // buffer pointer
+    					bpcuraccel_on = curaccel_on; // buffer current accel pointer
+    					bprefaccel_on = refaccel_on; // buffer ref accel pointer
+    					// Reset Status Flags
+    					onFirst = 1;
+    					offFirst = 0;
+    				}
+    				ramps = Sramps(mySegs, nseg, &iseg, &itime, BTI, pref); //rev
     				*Ke = 1;
     				//PIDF Controller
 					actualPosition = pos() / 2000; //rev
@@ -303,20 +337,63 @@ void *TimerIRQThread(void* resource) {
 					DDERIV->b2 = DDERIV->b0;
 					DDERIV->a1 = (-8*pow(tau_DD, 2) + 2*pow(BTI,2))/denom_DD;
 					DDERIV->a2 = ((4*pow(tau_DD,2))-(4*BTI*tau_DD)+pow(BTI, 2))/denom_DD;
-					actualAccel = cascade((*pact)*2*PI, DDERIV, DDERIV_ns,-900,900); //convert rev to rad
+					actualAccel = cascade((*pact)*2*PI, DDERIV, DDERIV_ns,-2000, 2000); //convert rev to rad
 					*aact = actualAccel; //rad/s^2
 					accelError = *aref - *aact;//rad/s^2 output of accel. controller
 					denom_ACC = (2*tau_ACC)+BTI;
 					ACC -> b0 = (*Ka)*BTI/denom_ACC;
 					ACC -> b1 = ACC -> b0;
 					ACC -> a1 = (-(2*tau_ACC)+BTI)/denom_ACC;
-					OutputAccel = cascade(accelError, ACC, ACC_ns,-900,900);
+					OutputAccel = cascade(accelError, ACC, ACC_ns,-2000, 2000);
 					AccelTorqueOutput = OutputAccel * J;
 					vout = AccelTorqueOutput / KT / KVI;
 					Aio_Write(&CO0,  vout);
 
+					// Write MATLAB Data
+					//measured position
+					if (bpcurpos_on < curpos_on + IMAX){
+						*bpcurpos_on++ = actualPosition*2*PI;
+					}
+					//reference position
+					if (bprefpos_on < refpos_on + IMAX){
+						*bprefpos_on++ = (*pref)*(2*PI);
+					}
+					//add torque
+					if (bptor_on < torque_on + IMAX){
+						*bptor_on++ =  KVI*KT*vout;
+					}
+					//reference acceleration
+					if (bprefaccel_on < refaccel_on + IMAX){
+						*bprefaccel_on++ = (*aref)*(2*PI);
+					}
+					// measured current accel
+					if (bpcuraccel_on < curaccel_on + IMAX){
+							*bpcuraccel_on++ = actualAccel*(2*PI);
+					 }
+
     			}
     			else if (*OnOff == 0.0){
+    				if (offFirst == 0){
+    					// Reset Position
+    					Aio_Write(&CO0,  0.0);
+    					*pref = 0;
+    					wait(3000);
+    					*pact = 0;
+    					// Reset Sramps
+						iseg = -1;
+						itime = -1;
+						pos_int = 0;
+						// Reset Buffer Pointers
+						bpcurpos_off = curpos_off; // buffer pointer
+						bprefpos_off = refpos_off; // buffer pointer
+						bptor_off = torque_off; // buffer pointer
+						bpcuraccel_off = curaccel_off; // buffer current accel pointer
+						bprefaccel_off = refaccel_off; // buffer ref accel pointer
+						// Update status flags
+						onFirst = 0;
+						offFirst = 1;
+					}
+    				ramps = Sramps(mySegs, nseg, &iseg, &itime, BTI, pref); //rev
     				*Ke = 0;
     				actualPosition = pos() / 2000; //rev
 					*pact = actualPosition;
@@ -324,40 +401,31 @@ void *TimerIRQThread(void* resource) {
 					torqueOut = cascade(error, PIDF, PIDF_ns,-1, 1); //get PID output
 					vout = torqueOut / KT / KVI;
 					Aio_Write(&CO0,  vout);
+
+					// Write MATLAB Data
+					//measured position
+					if (bpcurpos_off < curpos_off + IMAX){
+						*bpcurpos_off++ = actualPosition*2*PI;
+					}
+					//reference position
+					if (bprefpos_off < refpos_off + IMAX){
+						*bprefpos_off++ = (*pref)*(2*PI);
+					}
+					//add torque
+					if (bptor_off < torque_off + IMAX){
+						*bptor_off++ =  KVI*KT*vout;
+					}
+					//reference acceleration
+					if (bprefaccel_off < refaccel_off + IMAX){
+						*bprefaccel_off++ = (*aref)*(2*PI);
+					}
+					// measured current accel
+					if (bpcuraccel_off < curaccel_off + IMAX){
+							*bpcuraccel_off++ = actualAccel*(2*PI);
+					}
     			}
-
-    		    //measured position
-    		    if (bpcurpos < curpos + IMAX){
-
-    		    	*bpcurpos++ = actualPosition*2*PI;
-    		 	}
-
-    		    //reference position
-    		    if (bprefpos < refpos + IMAX){
-
-    		    	*bprefpos++ = (*pref)*(2*PI);
-    		 	}
-
-    		    //add torque
-    		    if (bptor < torque + IMAX){
-    		 		*bptor++ =  KVI*KT*vout;
-    		 	}
-
-                //reference acceleration
-       		    if (bprefaccel < refaccel + IMAX){
-
-       		    	*bprefaccel++ = (*aref)*(2*PI);
-       		 	}
-
-                // measured current accel
-        		if (bpcuraccel < curaccel + IMAX){
-
-        		    	*bpcuraccel++ = actualAccel*(2*PI);
-        		 }
-
     			*VDAmV =   vout * 1000.0;
-
-    		   Irq_Acknowledge(irqAssert);
+    		    Irq_Acknowledge(irqAssert);
     		}
     	}
 
@@ -365,23 +433,27 @@ void *TimerIRQThread(void* resource) {
 		MATFILE * mf;
 			int err;
 
-		   	mf = openmatfile("CapstoneData.mat", &err);
+		   	mf = openmatfile("CapstoneDataNew.mat", &err);
 			if(!mf){
 				printf("Can’t open mat file %d\n", err);
 			}
 			matfile_addstring(mf, "myName", "Group 2");
-			matfile_addmatrix(mf, "Refpos", refpos, IMAX, 1, 0);
-			matfile_addmatrix(mf, "Curpos", curpos, IMAX, 1, 0);
-			matfile_addmatrix(mf, "Refaccel", refaccel, IMAX, 1, 0);
-			matfile_addmatrix(mf, "Curaccel", curaccel, IMAX, 1, 0);
-			matfile_addmatrix(mf, "Torque", torque, IMAX, 1, 0);
+			matfile_addmatrix(mf, "Refpos_on", refpos_on, IMAX, 1, 0);
+			matfile_addmatrix(mf, "Curpos_on", curpos_on, IMAX, 1, 0);
+			matfile_addmatrix(mf, "Refaccel_on", refaccel_on, IMAX, 1, 0);
+			matfile_addmatrix(mf, "Curaccel_on", curaccel_on, IMAX, 1, 0);
+			matfile_addmatrix(mf, "Torque_on", torque_on, IMAX, 1, 0);
+			matfile_addmatrix(mf, "Refpos_off", refpos_off, IMAX, 1, 0);
+			matfile_addmatrix(mf, "Curpos_off", curpos_off, IMAX, 1, 0);
+			matfile_addmatrix(mf, "Refaccel_off", refaccel_off, IMAX, 1, 0);
+			matfile_addmatrix(mf, "Curaccel_off", curaccel_off, IMAX, 1, 0);
+			matfile_addmatrix(mf, "Torque_off", torque_off, IMAX, 1, 0);
 			matfile_addmatrix(mf, "PIDF", (double *) PIDF, 6, 1, 0);
 			matfile_addmatrix(mf, "AccelController", (double *) ACC, 6, 1, 0);
 			matfile_addmatrix(mf, "DoubleDervivate", (double *) DDERIV, 6, 1, 0);
 			matfile_addmatrix(mf, "BTILength", &BTI, 1, 1, 0);
+			matfile_addmatrix(mf, "Ka", Ka, 1, 1, 0);
 			matfile_close(mf);
-
-
 			pthread_exit(NULL);
 			return NULL;
 }
@@ -431,15 +503,14 @@ Parameters: void
 Returns: double - difference between the current and previous positions Th
 --------------------------------------------------------------*/
 double pos(void) {
-	static int n = 1;
 	static int32_t curCount;
 	static int32_t prevCount;
 
 	// reading the current encoder counter
-	if (n == 1) {
+	if (pos_int == 0) {
 		curCount = Encoder_Counter(&encC0);
 		prevCount = curCount;
-		n = 0;
+		pos_int = 1;
 	} else {
 		curCount = Encoder_Counter(&encC0);
 	}
@@ -448,6 +519,17 @@ double pos(void) {
 	return delta;
 }
 
-
-
-
+/*--------------------------------------------------------------
+ method: wait
+ purpose: wait a given amount of milliseconds
+ parameters: takes in number of ms intended to pass
+ returns: none
+-------------------------------------------------------------- */
+void wait(int cycles) {
+    uint32_t i;
+    i = (417000/5)*cycles;
+    while(i>0){
+        i--;
+    }
+    return;
+}

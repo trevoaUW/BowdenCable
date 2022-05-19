@@ -1,10 +1,10 @@
 %ME 495 Bowden Cable Capstone
-clear all; close all;clc;
+% clear all; close all;clc;
 % Friction Parameters
-param.g1 = 0;    % max stiction value
+param.g1 = 0.0934;    % max stiction value
 param.g2 = 90;
 param.g3 = 11;
-param.g4 = 0;    % max Coulomb value
+param.g4 = 0.0398;    % max Coulomb value
 param.g5 = 100;
 param.g6 = 0;    % damping coeff.
 
@@ -37,8 +37,6 @@ comment = 'Friction Capstone Controllers';
 sos2header(fid, sos, 'PIDF',T, 0, comment);
 
 %% DOUBLE DERIVATIVE FILTER
-% tau_b = 1/w_b
-% w_b = w_b_factor * BTI
 w_b_factor = 0.0075;
 tau_d = 1/(w_b_factor*Hz*2*pi);
 H1 = tf([1 0],[tau_d 1]);
@@ -61,9 +59,9 @@ sos2header(fid, sos2, 'DDERIV',T, tau_d, comment2);
 ol_no_accel = pid*plant;
 cl_no_accel = feedback(ol_no_accel, 1);
 omega_b = 5*bandwidth(cl_no_accel);
-param.Ka = 1;
+param.Ka = 5;  % Changes model parameters but not controller Ka
 param.tau = 1/omega_b;
-accel_cont = tf([param.Ka], [param.tau, 1]);
+accel_cont = tf([param.Ka], [param.tau, 1]); % Adjust Ka on keypad
 
 %convert with Tustin
 cdp_ac = c2d(accel_cont,T,'tustin'); %parallel discrete
