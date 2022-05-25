@@ -5,7 +5,6 @@
 #include "MyRio.h"
 #include "me477.h"
 #include <string.h>
-//#include "emulate.h"
 #include "ctable2.h"
 #include "TimerIRQ.h"
 #include <pthread.h>
@@ -26,16 +25,12 @@ double a0; double a1; double a2; // denominator
 double x0; double x1; double x2; // input
 double y1; double y2; }; // output
 
-/*
-
-*/
 //change for controller
 #include "myPIDF.h"
-//acceleration controller (change by its saved file)
+//acceleration controller
 #include "myAcc.h"
-//converts position into acceleration for feeding back
+//double derivative filter
 #include "myDDeriv.h"
-
 
 typedef struct {
 NiFpga_IrqContext irqContext; // context
@@ -47,7 +42,6 @@ NiFpga_Bool irqThreadRdy; // ready flag
 
 
 /* prototypes */
-//double	double_in(char *prompt);
 double cascade( double xin, // input
 struct biquad *fa, // biquad array
 int ns, // no. segments
@@ -65,7 +59,7 @@ int Sramps( seg *segs, // segments array
 
 /* definitions */
 #define SATURATE(x,lo,hi) ((x) < (lo) ? (lo) : (x) > (hi) ? (hi) : (x))
-#define IMAX 32500 // max points
+#define IMAX 50000 // max points
 
 /* global variables*/
 double KVI = 0.41;
@@ -102,7 +96,7 @@ static double *bpcuraccel_off = curaccel_off; // buffer current accel pointer
 static double refaccel_off[IMAX]; // ref accel buffer
 static double *bprefaccel_off = refaccel_off; // buffer ref accel pointer
 
-// if we have more time, build another filter for 1 derivative
+// Velocity Collection Script if needed
 //static double curvel[IMAX]; // current vel buffer
 //static double *bpcurvel = curvel; // buffer current vel pointer
 //static double refvel[IMAX]; // ref vel buffer
@@ -145,7 +139,7 @@ int main(int argc, char **argv)
     //my code here
     double vmax = 50.; // revs/s
     double amax = 20.; // revs/s^2
-    double dwell = 3; // s
+    double dwell = 5; // s
     seg mySegs[8] = { // revs
     {10.125, vmax, amax, dwell},
     {20.250, vmax, amax, dwell},
@@ -166,7 +160,7 @@ int main(int argc, char **argv)
     {"P act: (revs)", 0, 0.0 },
     {"A ref:", 0, 0.0},
     {"A act:", 0, 0.0},
-	{"Ka:", 1, 5},
+	{"Ka:", 1, 5.0},
 	{"Ke:", 0, 1.0},
 	{"OnOff:", 1, 1.0},  // On: 1, Off: 0
     {"VDAout: (mV)", 0, 0.0 }
@@ -326,7 +320,7 @@ void *TimerIRQThread(void* resource) {
 					actualPosition = pos() / 2000; //rev
 					*pact = actualPosition;
 					error = (*pref - *pact)*2*PI; //rad
-					torqueOut = cascade(error, PIDF, PIDF_ns,-1, 1); //get PID output
+					torqueOut = cascade(error, PIDF, PIDF_ns, -0.451, 0.451); //get PID output
 
 					// Acceleration Controller
 					*aref = torqueOut / J;  //rad/s^2
@@ -337,14 +331,14 @@ void *TimerIRQThread(void* resource) {
 					DDERIV->b2 = DDERIV->b0;
 					DDERIV->a1 = (-8*pow(tau_DD, 2) + 2*pow(BTI,2))/denom_DD;
 					DDERIV->a2 = ((4*pow(tau_DD,2))-(4*BTI*tau_DD)+pow(BTI, 2))/denom_DD;
-					actualAccel = cascade((*pact)*2*PI, DDERIV, DDERIV_ns,-2000, 2000); //convert rev to rad
+					actualAccel = cascade((*pact)*2*PI, DDERIV, DDERIV_ns,-1346.5, 1326.5); //convert rev to rad
 					*aact = actualAccel; //rad/s^2
 					accelError = *aref - *aact;//rad/s^2 output of accel. controller
 					denom_ACC = (2*tau_ACC)+BTI;
 					ACC -> b0 = (*Ka)*BTI/denom_ACC;
 					ACC -> b1 = ACC -> b0;
 					ACC -> a1 = (-(2*tau_ACC)+BTI)/denom_ACC;
-					OutputAccel = cascade(accelError, ACC, ACC_ns,-2000, 2000);
+					OutputAccel = cascade(accelError, ACC, ACC_ns,-1326.5, 1326.5);
 					AccelTorqueOutput = OutputAccel * J;
 					vout = AccelTorqueOutput / KT / KVI;
 					Aio_Write(&CO0,  vout);
@@ -398,7 +392,7 @@ void *TimerIRQThread(void* resource) {
     				actualPosition = pos() / 2000; //rev
 					*pact = actualPosition;
 					error = (*pref - *pact)*2*PI; //rad
-					torqueOut = cascade(error, PIDF, PIDF_ns,-1, 1); //get PID output
+					torqueOut = cascade(error, PIDF, PIDF_ns, -0.451, 0.451); //get PID output
 					vout = torqueOut / KT / KVI;
 					Aio_Write(&CO0,  vout);
 
@@ -431,31 +425,31 @@ void *TimerIRQThread(void* resource) {
 
 		// convert data to a MATLAB file for further analysis
 		MATFILE * mf;
-			int err;
+		int err;
 
-		   	mf = openmatfile("CapstoneDataNew.mat", &err);
-			if(!mf){
+		mf = openmatfile("CapstoneDataNew.mat", &err);
+		if(!mf){
 				printf("Can’t open mat file %d\n", err);
 			}
-			matfile_addstring(mf, "myName", "Group 2");
-			matfile_addmatrix(mf, "Refpos_on", refpos_on, IMAX, 1, 0);
-			matfile_addmatrix(mf, "Curpos_on", curpos_on, IMAX, 1, 0);
-			matfile_addmatrix(mf, "Refaccel_on", refaccel_on, IMAX, 1, 0);
-			matfile_addmatrix(mf, "Curaccel_on", curaccel_on, IMAX, 1, 0);
-			matfile_addmatrix(mf, "Torque_on", torque_on, IMAX, 1, 0);
-			matfile_addmatrix(mf, "Refpos_off", refpos_off, IMAX, 1, 0);
-			matfile_addmatrix(mf, "Curpos_off", curpos_off, IMAX, 1, 0);
-			matfile_addmatrix(mf, "Refaccel_off", refaccel_off, IMAX, 1, 0);
-			matfile_addmatrix(mf, "Curaccel_off", curaccel_off, IMAX, 1, 0);
-			matfile_addmatrix(mf, "Torque_off", torque_off, IMAX, 1, 0);
-			matfile_addmatrix(mf, "PIDF", (double *) PIDF, 6, 1, 0);
-			matfile_addmatrix(mf, "AccelController", (double *) ACC, 6, 1, 0);
-			matfile_addmatrix(mf, "DoubleDervivate", (double *) DDERIV, 6, 1, 0);
-			matfile_addmatrix(mf, "BTILength", &BTI, 1, 1, 0);
-			matfile_addmatrix(mf, "Ka", Ka, 1, 1, 0);
-			matfile_close(mf);
-			pthread_exit(NULL);
-			return NULL;
+		matfile_addstring(mf, "myName", "Group 2");
+		matfile_addmatrix(mf, "Refpos_on", refpos_on, IMAX, 1, 0);
+		matfile_addmatrix(mf, "Curpos_on", curpos_on, IMAX, 1, 0);
+		matfile_addmatrix(mf, "Refaccel_on", refaccel_on, IMAX, 1, 0);
+		matfile_addmatrix(mf, "Curaccel_on", curaccel_on, IMAX, 1, 0);
+		matfile_addmatrix(mf, "Torque_on", torque_on, IMAX, 1, 0);
+		matfile_addmatrix(mf, "Refpos_off", refpos_off, IMAX, 1, 0);
+		matfile_addmatrix(mf, "Curpos_off", curpos_off, IMAX, 1, 0);
+		matfile_addmatrix(mf, "Refaccel_off", refaccel_off, IMAX, 1, 0);
+		matfile_addmatrix(mf, "Curaccel_off", curaccel_off, IMAX, 1, 0);
+		matfile_addmatrix(mf, "Torque_off", torque_off, IMAX, 1, 0);
+		matfile_addmatrix(mf, "PIDF", (double *) PIDF, 6, 1, 0);
+		matfile_addmatrix(mf, "AccelController", (double *) ACC, 6, 1, 0);
+		matfile_addmatrix(mf, "DoubleDervivate", (double *) DDERIV, 6, 1, 0);
+		matfile_addmatrix(mf, "BTILength", &BTI, 1, 1, 0);
+		matfile_addmatrix(mf, "Ka", Ka, 1, 1, 0);
+		matfile_close(mf);
+		pthread_exit(NULL);
+		return NULL;
 }
 
 

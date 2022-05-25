@@ -24,14 +24,14 @@ param.Ki = pid.Ki;
 param.Kd = pid.Kd;
 param.N = 1/pid.Tf;
 
-%convert to discrete form
+% convert to discrete form
 cdp_pid = c2d(pid,T,'tustin'); %parallel discrete
 cd_pid = tf(cdp_pid); %transfer function form
 [b_pid, a_pid] = tfdata(cd_pid, 'v'); %outputs to array
 sos = tf2sos(b_pid, a_pid);
 
-%Send to location where Eclipse will be able to access it
-%%%NEED TO UPDATE LOCATION FOR USE IN TESTing
+% Send to location where Eclipse will be able to access it
+% NEED TO UPDATE LOCATION FOR USE IN TESTing
 fid = fopen("C:\Users\Trevor\Documents\UW Files\ME 477\workspace\myLab8\myPIDF.h", 'w');
 comment = 'Friction Capstone Controllers';
 sos2header(fid, sos, 'PIDF',T, 0, comment);
@@ -49,8 +49,8 @@ cd_dd = tf(cdp_dd); %transfer function form
 [b_dd, a_dd] = tfdata(cd_dd, 'v'); %outputs to array
 sos2 = tf2sos(b_dd, a_dd);
 
-%Send to location where Eclipse will be able to access it
-%%%NEED TO UPDATE LOCATION FOR USE IN TESTing
+% Send to location where Eclipse will be able to access it
+% NEED TO UPDATE LOCATION FOR USE IN TESTING
 fid = fopen("C:\Users\Trevor\Documents\UW Files\ME 477\workspace\myLab8\myDDeriv.h", 'w');
 comment2 = 'Double Derivative Filter';
 sos2header(fid, sos2, 'DDERIV',T, tau_d, comment2);
@@ -63,7 +63,7 @@ param.Ka = 5;  % Changes model parameters but not controller Ka
 param.tau = 1/omega_b;
 accel_cont = tf([param.Ka], [param.tau, 1]); % Adjust Ka on keypad
 
-%convert with Tustin
+% convert with Tustin
 cdp_ac = c2d(accel_cont,T,'tustin'); %parallel discrete
 cd_ac = tf(cdp_ac); %transfer function form
 [b_ac, a_ac] = tfdata(cd_ac, 'v'); %outputs to array
