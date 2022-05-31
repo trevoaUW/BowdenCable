@@ -4,9 +4,9 @@
 param.g1 = 0;    % Stiction is suppressed
 param.g2 = 0;
 param.g3 = 0;
-param.g4 = 0.1375;    % max Coulomb value
+param.g4 = 0.1752;    % max Coulomb value
 param.g5 = 100;
-param.g6 = 0.0009;    % damping coeff.
+param.g6 = 0.0023;    % damping coeff.
 
 % Plant Parameters
 param.J = 0.00034;
