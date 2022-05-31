@@ -1,12 +1,12 @@
 %ME 495 Bowden Cable Capstone
 % clear all; close all;clc;
 % Friction Parameters
-param.g1 = 0;    % Stiction is suppressed
+param.g1 = 0;    % Sti
 param.g2 = 0;
 param.g3 = 0;
-param.g4 = 0.1375;    % max Coulomb value
+param.g4 = 0.0398;    % max Coulomb value
 param.g5 = 100;
-param.g6 = 0.0009;    % damping coeff.
+param.g6 = 0;    % damping coeff.
 
 % Plant Parameters
 param.J = 0.00034;
